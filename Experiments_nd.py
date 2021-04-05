@@ -55,11 +55,11 @@ import numpy as np
 def get_sphere(dim, dset_type) :
     
     if dim == 2:
-        n=1000
-    elif dim==3 :
-        n=100
-    elif dim==4 :
         n=10
+    elif dim==3 :
+        n=5
+    elif dim==4 :
+        n=2
     else:
         n=1
     
@@ -79,8 +79,8 @@ def get_sphere(dim, dset_type) :
         if(dim == 10) :
             x = x[:, np.random.choice(len(x[0]), 1000, replace=False)]
     else :
-        if(dim in [2,3,4]) : 
-            x = x[:, np.random.choice(len(x[0]), 100, replace=False)]
+        # if(dim in [2,3,4]) : 
+        #     x = x[:, np.random.choice(len(x[0]), 100, replace=False)]
             
         if(dim == 10) :
             x = x[:, np.random.choice(len(x[0]), 200, replace=False)]
@@ -145,7 +145,6 @@ from torch.utils.data import Dataset, DataLoader
 import pickle
 import random
 
-np.random.seed(0)
 
 dtype = torch.cuda.FloatTensor
 
@@ -174,25 +173,30 @@ class binaryClassification(nn.Module):
         self.h_layers.append(nn.Linear(dim, nodes))
         
         if batch_norm :
-          self.batch_norm_layers.append(nn.BatchNorm1d(nodes))
+          self.batch_norm_layers.append(nn.BatchNorm1d(dim))
         
         for i in range(layers-1) :
             self.h_layers.append(nn.Linear(nodes, nodes))
-            if batch_norm :
-              self.batch_norm_layers.append(nn.BatchNorm1d(nodes))
+            # if batch_norm :
+            #   self.batch_norm_layers.append(nn.BatchNorm1d(nodes))
 
         self.h_layers.append(nn.Linear(nodes, 1))
         self.relu = nn.ReLU()
         
-    def forward(self, inputs):
-        x = self.h_layers[0](inputs)
+    def forward(self, x):
+        
+        if(self.batch_norm) :
+            x = self.batch_norm_layers[0](x)
+            
+        x = self.h_layers[0](x)
         for i in range(1, len(self.h_layers)-1) :
             x = self.relu(x)
-            if self.batch_norm :
-              x = self.batch_norm_layers[i-1](x)
+            # if self.batch_norm :
+            #   x = self.batch_norm_layers[i-1](x)
             x = self.h_layers[i](x)
         x = self.relu(x)
         x = self.h_layers[-1](x)
+        
         return x
 
 def binary_acc(y_pred, y_test):
@@ -286,54 +290,42 @@ def init_weights_custom(m, X, mode):
       # print("yeah")
       L2 = m.h_layers[1]
       
-      if mode.startswith('parallel') :
-          
-        X2 = np.ones((L2.out_features, L1.out_features, L1.out_features+1))
-        for i in range(L2.out_features) :
-            X1 = X[np.random.choice(len(X), L1.out_features)]
-            X1 = np.maximum(np.dot(X1, w.T) + b, 0)
-            # X1 = np.dot(X1, w.T) + b
-            X2[i, :, :-1] = X1
-        
-        w, b = get_paral(X2, mode)
-      elif mode.startswith('perpen') :
-        X1 = np.maximum(np.dot(X1, w.T) + b, 0)
-        X2 = np.maximum(np.dot(X2, w.T) + b, 0)
-        w, b = get_perpen(X1, X2, mode)
-      else :
-        print("wrong mode")
-        
-      L2.weight.data = torch.tensor(w, requires_grad=True, dtype = torch.float)
-      L2.bias.data = torch.tensor(b, requires_grad=True, dtype = torch.float)     
+      init_weights_xavier(L2)
 
-lr=0.001
-layers = [1]
-nodes = [5, 10, 20, 50, 100, 200]
-BATCH_SIZE = 1000
-Max_epochs = 20000
+lr=0.0001
+layers = [2]
+nodes = [ 10, 20, 50,100,200]
+# layers = [ 1]
+# nodes = [100, 200]
+BATCH_SIZE = 8000
+Max_epochs = 50000
+batch_norm=True
 
 # n=1000 for 2 dim
 # n=10 for 3 dim
 # n=3 for 4 dim
 # n=1 for 10 dim
 
-for dset_type in ["multi_model", "uni_model"]:
+for dset_type in ["multi_model"]:
 
-    for type_init in ['perpen', 'parallel', 'xavier', 'perpen_norm', 'parallel_norm'] :
+    # for type_init in ['perpen', 'parallel', 'xavier', 'perpen_norm', 'parallel_norm'] :
+    for type_init in ['parallel_norm'] :
     
-        for dim  in [2, 3, 4, 10] :    
+        for dim  in [2,3,4,10] :    
     
             X_train, y_train = get_dataset(dim, dset_type)
                 
             for cur_layer in layers :
                 
                for cur_node in nodes :
+                   
+                    np.random.seed(1)
                     
                     print(dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node))
             
                     train_data = trainData(torch.FloatTensor(X_train).type(dtype), torch.FloatTensor(y_train).type(dtype))
                     train_loader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
-                    model = binaryClassification(cur_layer, cur_node, dim, False)
+                    model = binaryClassification(cur_layer, cur_node, dim, batch_norm)
                     criterion = nn.BCEWithLogitsLoss()
                     optimizer = optim.Adam(model.parameters(), lr=lr)
     
@@ -386,7 +378,10 @@ for dset_type in ["multi_model", "uni_model"]:
                         if(Epochs%500 == 0) : 
                             print(Epochs, epoch_loss)
                     
-                    file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+".pkl"), 'wb')
+                    if not batch_norm :
+                        file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+".pkl"), 'wb')
+                    else :
+                        file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+"_batch_norm.pkl"), 'wb')
                     pickle.dump(results, file)
                     file.close()
                     
