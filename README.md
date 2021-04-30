@@ -28,7 +28,7 @@ Similar datasets are created for 3,4,10 dimensions and neural network models are
 The following are some results -
 
 This is the result for 2 dimensional multimodel dataset
-![](https://raw.githubusercontent.com/sarath1221/MTP/main/Plots/2_dim.png)
+![](https://raw.githubusercontent.com/sarath1221/MTP/main/Plots/2_DIMEN.png)
 
 This is the result for 2 dimensional unimodel dataset ( where only one set of concentric shells is used to train the model )
 ![](https://raw.githubusercontent.com/sarath1221/MTP/main/Plots/uni_2_dim.png)
