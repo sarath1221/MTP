@@ -208,7 +208,7 @@ def binary_acc(y_pred, y_test):
     return acc
 
 def init_weights_xavier(m):
-    if type(m) == nn.Linear:
+    if type(m) == nn.Linear :
         torch.nn.init.xavier_uniform_(m.weight)
         torch.nn.init.zeros_(m.bias)
 
@@ -293,100 +293,147 @@ def init_weights_custom(m, X, mode):
       init_weights_xavier(L2)
 
 lr=0.0001
-layers = [2]
+layers = [1,2]
 nodes = [ 10, 20, 50,100,200]
 # layers = [ 1]
 # nodes = [100, 200]
 BATCH_SIZE = 8000
-Max_epochs = 50000
-batch_norm=True
+Max_epochs = 70000
+batch_norm=False
+
+epochs_dict = {2 : {1 : {10 : 70000,
+                         20 : 70000,
+                         50 : 70000,
+                         100 : 70000,
+                         200 : 70000},
+                    2 : {10 : 30000,
+                         20 : 30000,
+                         50 : 12000,
+                         100 : 10000,
+                         200 : 5000}},
+               3 : {1 : {10 : 40000,
+                         20 : 30000,
+                         50 : 60000,
+                         100 : 60000,
+                         200 : 60000},
+                    2 : {10 : 50000,
+                         20 : 60000,
+                         50 : 12000,
+                         100 : 8000,
+                         200 : 5000}},
+               4 : {1 : {10 : 30000,
+                         20 : 30000,
+                         50 : 30000,
+                         100 : 30000,
+                         200 : 60000},
+                    2 : {10 : 60000,
+                         20 : 60000,
+                         50 : 17000,
+                         100 : 10000,
+                         200 : 5000}},
+               10: {1 : {10 : 60000,
+                         20 : 70000,
+                         50 : 70000,
+                         100 : 70000,
+                         200 : 70000},
+                    2 : {10 : 30000,
+                         20 : 40000,
+                         50 : 50000,
+                         100 : 17000,
+                         200 : 10000}}}
+
+
 
 # n=1000 for 2 dim
 # n=10 for 3 dim
 # n=3 for 4 dim
 # n=1 for 10 dim
 
-for dset_type in ["multi_model"]:
 
-    # for type_init in ['perpen', 'parallel', 'xavier', 'perpen_norm', 'parallel_norm'] :
-    for type_init in ['parallel_norm'] :
+for i in range(4) :
+
+    for dset_type in ["multi_model"]:
     
-        for dim  in [2,3,4,10] :    
-    
-            X_train, y_train = get_dataset(dim, dset_type)
-                
-            for cur_layer in layers :
-                
-               for cur_node in nodes :
-                   
-                    np.random.seed(1)
+        for type_init in ['perpen', 'parallel', 'xavier', 'perpen_norm', 'parallel_norm'] :
+        # for type_init in ['parallel_norm'] :
+        
+            for dim  in [10] :    
+        
+                X_train, y_train = get_dataset(dim, dset_type)
                     
-                    print(dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node))
-            
-                    train_data = trainData(torch.FloatTensor(X_train).type(dtype), torch.FloatTensor(y_train).type(dtype))
-                    train_loader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
-                    model = binaryClassification(cur_layer, cur_node, dim, batch_norm)
-                    criterion = nn.BCEWithLogitsLoss()
-                    optimizer = optim.Adam(model.parameters(), lr=lr)
-    
-                    init_weights(model, X_train, type_init)
-    
-                    model.train()
-                    count = 0
+                for cur_layer in layers :
                     
-                    model.to('cuda')
-                    Epochs = -1
-                    epoch_acc = 0
-                    
-                    results = np.zeros(Max_epochs+1)
-                    time_start = time.time()
-                    
-                    while Epochs < Max_epochs  :
+                   for cur_node in nodes :
+                       
+                        np.random.seed(i)
                         
-                        Epochs = Epochs+1
-                        epoch_loss = 0
+                        print(dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node))
+                
+                        train_data = trainData(torch.FloatTensor(X_train).type(dtype), torch.FloatTensor(y_train).type(dtype))
+                        train_loader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
+                        model = binaryClassification(cur_layer, cur_node, dim, batch_norm)
+                        criterion = nn.BCEWithLogitsLoss()
+                        optimizer = optim.Adam(model.parameters(), lr=lr)
+        
+                        init_weights(model, X_train, type_init)
+        
+                        model.train()
+                        count = 0
+                        
+                        model.to('cuda')
+                        Epochs = -1
                         epoch_acc = 0
-    
-                        # if Epochs%100 == 0 :
-                        #     print(f'Epoch {Epochs+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}', end = '\n')
-                        #     fig, ax = display(X_train, y_train, Epochs)
-                        #     display_W(model.h_layers[0].weight.data, model.h_layers[0].bias.data, ax, fig)
-                        #     ax.set_ylim([-1.5, 1.5])
-                        #     # fig.savefig((".//Custom//" )+str(Epochs))
-                        #     # plt.close(fig)                    
-    
-    
+                        Max_epochs = epochs_dict[dim][cur_layer][cur_node]
                         
-                        for X_batch, y_batch in train_loader:
-                            optimizer.zero_grad()
-                            
-                            y_pred = model(X_batch)
-                            
-                            loss = criterion(y_pred, y_batch)
-                            acc = binary_acc(y_pred, y_batch)
-                            
-                            loss.backward()
-                            optimizer.step()
-                            
-                            epoch_loss += loss.item()
-                            epoch_acc += acc.item()
-                            
-                        epoch_loss = epoch_loss/len(train_loader)
-                        epoch_acc = epoch_acc/len(train_loader)
-                        results[Epochs] = epoch_loss
+                        results = np.zeros(Max_epochs+1)
+                        time_start = time.time()
                         
-                        if(Epochs%500 == 0) : 
-                            print(Epochs, epoch_loss)
-                    
-                    if not batch_norm :
-                        file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+".pkl"), 'wb')
-                    else :
-                        file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+"_batch_norm.pkl"), 'wb')
-                    pickle.dump(results, file)
-                    file.close()
-                    
-                    time_end = time.time()
-                    print(datetime.timedelta(seconds = time_end - time_start))
+                        while Epochs < Max_epochs  :
+                            
+                            Epochs = Epochs+1
+                            epoch_loss = 0
+                            epoch_acc = 0
+        
+                            # if Epochs%100 == 0 :
+                            #     print(f'Epoch {Epochs+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}', end = '\n')
+                            #     fig, ax = display(X_train, y_train, Epochs)
+                            #     display_W(model.h_layers[0].weight.data, model.h_layers[0].bias.data, ax, fig)
+                            #     ax.set_ylim([-1.5, 1.5])
+                            #     # fig.savefig((".//Custom//" )+str(Epochs))
+                            #     # plt.close(fig)                    
+        
+        
+                            
+                            for X_batch, y_batch in train_loader:
+                                optimizer.zero_grad()
+                                
+                                y_pred = model(X_batch)
+                                
+                                loss = criterion(y_pred, y_batch)
+                                acc = binary_acc(y_pred, y_batch)
+                                
+                                loss.backward()
+                                optimizer.step()
+                                
+                                epoch_loss += loss.item()
+                                epoch_acc += acc.item()
+                                
+                            epoch_loss = epoch_loss/len(train_loader)
+                            epoch_acc = epoch_acc/len(train_loader)
+                            results[Epochs] = epoch_loss
+                            
+                            if(Epochs%500 == 0) : 
+                                print(Epochs, epoch_loss)
+                        
+                        if not batch_norm :
+                            file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+"_"+str(i)+".pkl"), 'wb')
+                        else :
+                            file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+"_"+str(i)+"_batch_norm.pkl"), 'wb')
+                        pickle.dump(results, file)
+                        file.close()
+                        
+                        time_end = time.time()
+                        print(datetime.timedelta(seconds = time_end - time_start))
 
 # train_acc = epoch_acc
 # print(layers[cur_layer], " ", nodes[cur_node], " ", Epochs, " ",  train_acc )
