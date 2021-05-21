@@ -6,6 +6,7 @@
 
 from mpl_toolkits import mplot3d
 import numpy as np
+from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import datetime
 import time
@@ -250,13 +251,14 @@ def get_paral(X1, mode) :
             w[i, j] = ((-1)**j)*np.linalg.det(np.delete(X1[i], j, axis = 1))
     
         b[i] = ((-1)**X1.shape[1])*np.linalg.det(np.delete(X1[i], X1.shape[1], axis = 1))
-    
-    print(w)
-    print(b)
+        
     if(mode.endswith("norm")) :
         norm = np.sqrt((np.sum(w**2, axis=1) + b**2))
         w = w/norm.reshape((-1,1))
         b = b/norm
+    
+    print(w)
+    print(b)
     
     return w, b
 
@@ -268,17 +270,45 @@ def display_W(W, b, ax, fig) :
         ax.plot(x_lim, y_vals, '--')
         
 
+def pass_through(vals, layer) :
+    
+    res = np.add(np.matmul(vals, layer.weight.data.T), layer.bias.data).numpy()
+    # res[res<0] = 0
+    
+    return res
+
+def get_pca(X1, mode) :
+    
+    w = np.zeros((len(X1), X1.shape[2]))
+    b = np.zeros(len(X1))
+    
+    for i in range(len(X1)):
+        pca = PCA()
+        pca.fit(X1[i])
+        w[i] = pca.components_[0]
+    
+# if(mode.endswith("norm")) :
+    norm = np.sqrt((np.sum(w**2, axis=1) + b**2))
+    w = w/norm.reshape((-1,1))
+    # b = b/norm
+    
+    print(w)
+    print(b)
+    
+    return w, b    
+
 def init_weights_custom(m, X, mode):
     L1 = m.h_layers[0]
     
     if mode.startswith('parallel') :
         X1 = np.ones((L1.out_features, dim, dim+1))
         for i in range(L1.out_features) :
-            X1[i,:,:-1] = X[np.random.choice(len(X), dim)]
+            X1[i,:,:-1] = X[np.random.choice(len(X), dim, replace=False)]
         w, b = get_paral(X1, mode)
     elif mode.startswith('perpen') :
-        X1 = X[np.random.choice(len(X), L1.out_features)]
-        X2 = X[np.random.choice(len(X), L1.out_features)]
+        X1 = X[np.random.choice(len(X), 2*L1.out_features, replace=True)]
+        X2 = X1[np.arange(0,len(X1), 2)]
+        X1 = X1[np.arange(1,len(X1), 2)]
         w, b = get_perpen(X1, X2, mode)
     else :
         print("wrong mode")
@@ -287,14 +317,42 @@ def init_weights_custom(m, X, mode):
     L1.bias.data = torch.tensor(b, requires_grad=True, dtype = torch.float)
 
     if(len(m.h_layers) > 2) :
-      # print("yeah")
-      L2 = m.h_layers[1]
+      # # print("yeah")
       
-      init_weights_xavier(L2)
+        
+         L2 = m.h_layers[1]
+      
+      # # CHANGE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         init_weights_xavier(L2)
+      
+         # if mode.startswith('parallel') :
+             
+         #      # X1 = np.ones((L2.out_features,  min(2*L2.out_features, len(X)), L1.out_features))
+         #      # for i in range(L2.out_features) :
+         #      #     X1[i,:,:] = pass_through(X[np.random.choice(len(X),  min(2*L2.out_features, len(X)), replace=False)], L1)
+         #      # w, b = get_pca(X1, mode)
 
-lr=0.0001
-layers = [1,2]
-nodes = [ 10, 20, 50,100,200]
+         #       X1 = np.ones((L2.out_features,  L1.out_features, L1.out_features+1))
+         #       for i in range(L2.out_features) :
+         #           X1[i,:,:-1] = pass_through(X[np.random.choice(len(X),  L1.out_features, replace=False)], L1)
+         #       w, b = get_paral(X1, mode)     
+                
+         # elif mode.startswith('perpen') :
+         #     X1 = pass_through(X[np.random.choice(len(X), 2*L2.out_features, replace=False)], L1)
+         #     X2 = X1[np.arange(0,len(X1), 2)]
+         #     X1 = X1[np.arange(1,len(X1), 2)]
+         #     w, b = get_perpen(X1, X2, mode)
+         # else :
+         #     print("wrong mode")
+                
+         # L2.weight.data = torch.tensor(w, requires_grad=True, dtype = torch.float)
+         # L2.bias.data = torch.tensor(b, requires_grad=True, dtype = torch.float)      
+        
+         # init_weights_xavier(L2)
+
+lr=0.001
+layers = [1, 2]
+nodes = [10,20,50, 100,200]
 # layers = [ 1]
 # nodes = [100, 200]
 BATCH_SIZE = 8000
@@ -350,14 +408,14 @@ epochs_dict = {2 : {1 : {10 : 70000,
 # n=1 for 10 dim
 
 
-for i in range(4) :
+for i in [1,2,3,4] :
 
     for dset_type in ["multi_model"]:
     
-        for type_init in ['perpen', 'parallel', 'xavier', 'perpen_norm', 'parallel_norm'] :
+        for type_init in ['perpen_norm'] :
         # for type_init in ['parallel_norm'] :
         
-            for dim  in [10] :    
+            for dim  in [4] :    
         
                 X_train, y_train = get_dataset(dim, dset_type)
                     
@@ -423,12 +481,14 @@ for i in range(4) :
                             results[Epochs] = epoch_loss
                             
                             if(Epochs%500 == 0) : 
-                                print(Epochs, epoch_loss)
+                                print(i, Epochs, epoch_loss, type_init, dim, cur_layer, cur_node)
                         
+                        
+                        ## CHANGE!!!!!!!!!!!!!!!!!!!!!!!
                         if not batch_norm :
-                            file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+"_"+str(i)+".pkl"), 'wb')
+                            file = open(os.path.join('.', "Res_f", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+"_"+str(i)+".pkl"), 'wb')
                         else :
-                            file = open(os.path.join('.', "Res", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+"_"+str(i)+"_batch_norm.pkl"), 'wb')
+                            file = open(os.path.join('.', "Res_f", dset_type+"_"+type_init+"_"+str(dim)+"_"+str(cur_layer)+"_"+str(cur_node)+"_"+str(i)+"_batch_norm.pkl"), 'wb')
                         pickle.dump(results, file)
                         file.close()
                         

@@ -6,15 +6,12 @@ import os
 import pickle
 
 
-fig, ax = plt.subplots(3,9, constrained_layout=True)
+fig, ax = plt.subplots(4,9, constrained_layout=True)
 index1 = -1
 
 for d_set in ["gaussian", "mnist"] :
-  if(d_set == "gaussian") :
-    temp =[True, False]
-  else :
-    temp =[False]
-
+  temp =[True, False] 
+  
   for g_known in temp :
     index1 = index1+1
     index2 = -1
